@@ -17,14 +17,15 @@
 package hexutil
 
 import (
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"math/big"
-	"reflect"
-	"strconv"
+        "encoding/hex"
+        "encoding/json"
+        "fmt"
+        "math/big"
+        "reflect"
+        "strconv"
+        "strings"
 
-	"github.com/holiman/uint256"
+        "github.com/holiman/uint256"
 )
 
 var (
@@ -35,15 +36,15 @@ var (
 	u256T   = reflect.TypeFor[*uint256.Int]()
 )
 
-// Bytes marshals/unmarshals as a JSON string with 0x prefix.
-// The empty slice marshals as "0x".
+// Bytes marshals/unmarshals as a JSON string with Prefix.
+// The empty slice marshals as Prefix.
 type Bytes []byte
 
 // MarshalText implements encoding.TextMarshaler
 func (b Bytes) MarshalText() ([]byte, error) {
-	result := make([]byte, len(b)*2+2)
-	copy(result, `0x`)
-	hex.Encode(result[2:], b)
+        result := make([]byte, len(b)*2+len(Prefix))
+        copy(result[:len(Prefix)], Prefix)
+        hex.Encode(result[len(Prefix):], b)
 	return result, nil
 }
 
@@ -94,7 +95,7 @@ func (b *Bytes) UnmarshalGraphQL(input interface{}) error {
 	return err
 }
 
-// UnmarshalFixedJSON decodes the input as a string with 0x prefix. The length of out
+// UnmarshalFixedJSON decodes the input as a string with Prefix. The length of out
 // determines the required input length. This function is commonly used to implement the
 // UnmarshalJSON method for fixed-size types.
 func UnmarshalFixedJSON(typ reflect.Type, input, out []byte) error {
@@ -104,7 +105,7 @@ func UnmarshalFixedJSON(typ reflect.Type, input, out []byte) error {
 	return wrapTypeError(UnmarshalFixedText(typ.String(), input[1:len(input)-1], out), typ)
 }
 
-// UnmarshalFixedText decodes the input as a string with 0x prefix. The length of out
+// UnmarshalFixedText decodes the input as a string with Prefix. The length of out
 // determines the required input length. This function is commonly used to implement the
 // UnmarshalText method for fixed-size types.
 func UnmarshalFixedText(typname string, input, out []byte) error {
@@ -125,7 +126,7 @@ func UnmarshalFixedText(typname string, input, out []byte) error {
 	return nil
 }
 
-// UnmarshalFixedUnprefixedText decodes the input as a string with optional 0x prefix. The
+// UnmarshalFixedUnprefixedText decodes the input as a string with optional Prefix. The
 // length of out determines the required input length. This function is commonly used to
 // implement the UnmarshalText method for fixed-size types.
 func UnmarshalFixedUnprefixedText(typname string, input, out []byte) error {
@@ -146,8 +147,8 @@ func UnmarshalFixedUnprefixedText(typname string, input, out []byte) error {
 	return nil
 }
 
-// Big marshals/unmarshals as a JSON string with 0x prefix.
-// The zero value marshals as "0x0".
+// Big marshals/unmarshals as a JSON string with Prefix.
+// The zero value marshals as Prefix + "0".
 //
 // Negative integers are not supported at this time. Attempting to marshal them will
 // return an error. Values larger than 256bits are rejected by Unmarshal but will be
@@ -228,8 +229,8 @@ func (b *Big) UnmarshalGraphQL(input interface{}) error {
 	return err
 }
 
-// U256 marshals/unmarshals as a JSON string with 0x prefix.
-// The zero value marshals as "0x0".
+// U256 marshals/unmarshals as a JSON string with Prefix.
+// The zero value marshals as Prefix + "0".
 type U256 uint256.Int
 
 // MarshalText implements encoding.TextMarshaler
@@ -240,7 +241,7 @@ func (b U256) MarshalText() ([]byte, error) {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (b *U256) UnmarshalJSON(input []byte) error {
-	// The uint256.Int.UnmarshalJSON method accepts "dec", "0xhex"; we must be
+        // The uint256.Int.UnmarshalJSON method accepts "dec", Prefix+"hex"; we must be
 	// more strict, hence we check string and invoke SetFromHex directly.
 	if !isString(input) {
 		return errNonString(u256T)
@@ -260,7 +261,7 @@ func (b *U256) UnmarshalJSON(input []byte) error {
 
 // UnmarshalText implements encoding.TextUnmarshaler
 func (b *U256) UnmarshalText(input []byte) error {
-	// The uint256.Int.UnmarshalText method accepts "dec", "0xhex"; we must be
+        // The uint256.Int.UnmarshalText method accepts "dec", Prefix+"hex"; we must be
 	// more strict, hence we check string and invoke SetFromHex directly.
 	return (*uint256.Int)(b).SetFromHex(string(input))
 }
@@ -270,14 +271,14 @@ func (b *U256) String() string {
 	return (*uint256.Int)(b).Hex()
 }
 
-// Uint64 marshals/unmarshals as a JSON string with 0x prefix.
-// The zero value marshals as "0x0".
+// Uint64 marshals/unmarshals as a JSON string with Prefix.
+// The zero value marshals as Prefix + "0".
 type Uint64 uint64
 
 // MarshalText implements encoding.TextMarshaler.
 func (b Uint64) MarshalText() ([]byte, error) {
-	buf := make([]byte, 2, 10)
-	copy(buf, `0x`)
+        buf := make([]byte, len(Prefix), len(Prefix)+16)
+        copy(buf[:len(Prefix)], Prefix)
 	buf = strconv.AppendUint(buf, uint64(b), 16)
 	return buf, nil
 }
@@ -334,8 +335,8 @@ func (b *Uint64) UnmarshalGraphQL(input interface{}) error {
 	return err
 }
 
-// Uint marshals/unmarshals as a JSON string with 0x prefix.
-// The zero value marshals as "0x0".
+// Uint marshals/unmarshals as a JSON string with Prefix.
+// The zero value marshals as Prefix + "0".
 type Uint uint
 
 // MarshalText implements encoding.TextMarshaler.
@@ -373,19 +374,19 @@ func isString(input []byte) bool {
 	return len(input) >= 2 && input[0] == '"' && input[len(input)-1] == '"'
 }
 
-func bytesHave0xPrefix(input []byte) bool {
-	return len(input) >= 2 && input[0] == '0' && (input[1] == 'x' || input[1] == 'X')
+func bytesHavePrefix(input []byte) bool {
+        return len(input) >= len(Prefix) && strings.EqualFold(string(input[:len(Prefix)]), Prefix)
 }
 
 func checkText(input []byte, wantPrefix bool) ([]byte, error) {
 	if len(input) == 0 {
 		return nil, nil // empty strings are allowed
 	}
-	if bytesHave0xPrefix(input) {
-		input = input[2:]
-	} else if wantPrefix {
-		return nil, ErrMissingPrefix
-	}
+        if bytesHavePrefix(input) {
+                input = input[len(Prefix):]
+        } else if wantPrefix {
+                return nil, ErrMissingPrefix
+        }
 	if len(input)%2 != 0 {
 		return nil, ErrOddLength
 	}
@@ -396,10 +397,10 @@ func checkNumberText(input []byte) (raw []byte, err error) {
 	if len(input) == 0 {
 		return nil, nil // empty strings are allowed
 	}
-	if !bytesHave0xPrefix(input) {
-		return nil, ErrMissingPrefix
-	}
-	input = input[2:]
+        if !bytesHavePrefix(input) {
+                return nil, ErrMissingPrefix
+        }
+        input = input[len(Prefix):]
 	if len(input) == 0 {
 		return nil, ErrEmptyNumber
 	}
